@@ -84,7 +84,12 @@ void LibraryLoader::loadLibrary()
 
 #elif defined(HAVE_DLFCN_H)
    // ToDo switch to RTLD_LAZY for performance?
-   libhandle = dlopen(libname.c_str(), RTLD_NOW);
+   #ifdef __APPLE__
+      libhandle = dlopen(libname.c_str(), RTLD_NOW);
+   #else
+      libhandle = dlopen(libname.c_str(), RTLD_NOW | RTLD_DEEPBIND);
+   #endif
+
    if( libhandle == NULL )
    {
       THROW_EXCEPTION(DYNAMIC_LIBRARY_FAILURE, dlerror());

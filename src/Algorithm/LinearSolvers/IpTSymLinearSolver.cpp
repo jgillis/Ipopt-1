@@ -331,8 +331,8 @@ ESymSolverStatus TSymLinearSolver::InitializeStructure(
 
       delete[] airn_;
       delete[] ajcn_;
-      airn_ = new Index[nonzeros_triplet_];
-      ajcn_ = new Index[nonzeros_triplet_];
+      airn_ = new Index[nonzeros_triplet_+1];
+      ajcn_ = new Index[nonzeros_triplet_+1];
 
       TripletHelper::FillRowCol(nonzeros_triplet_, sym_A, airn_, ajcn_);
 
