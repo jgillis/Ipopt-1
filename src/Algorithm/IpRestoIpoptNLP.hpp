@@ -158,10 +158,11 @@ public:
    );
 
    /** Jacobian Matrix for equality constraints */
-   virtual SmartPtr<const Vector> jac_vpt(
+   virtual void jac_vpt(
       const Vector& x,
       const Vector& s_d,
-      const Vector& s_c
+      const Vector& s_c,
+      Vector& r
    );
 
    /** Jacobian Matrix for equality constraints */

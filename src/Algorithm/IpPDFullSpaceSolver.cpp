@@ -705,48 +705,25 @@ void PDFullSpaceSolver::ComputeResiduals(
 
    SmartPtr<Vector> tmp;
 
+   bool use_jac_vp = true;
+   bool jac_vp_sanity_check = true;
+
    // x
-   W.MultVector(1., *res.x(), 0., *resid.x_NonConst());
-   //resid.x_NonConst()->Print(Jnlst(), J_NONE, J_MAIN, "here");
-   // resid.x_NonConst() += J_c^T * res.y_c();
-   J_c.TransMultVector(1., *res.y_c(), 1., *resid.x_NonConst());
-   J_d.TransMultVector(1., *res.y_d(), 1., *resid.x_NonConst());
+   if (use_jac_vp) {
+      resid.x_NonConst()->Set(0.);
+      IpNLP().jac_vpt(x, *res.y_d(), *res.y_c(), *resid.x_NonConst());
+   } else {
+      J_c.TransMultVector(1., *res.y_c(), 0., *resid.x_NonConst());
+      J_d.TransMultVector(1., *res.y_d(), 1., *resid.x_NonConst());
+   }
+   if (use_jac_vp && jac_vp_sanity_check) {
+      SmartPtr<Vector> residual = resid.x_NonConst()->MakeNewCopy();
+      J_c.TransMultVector(-1., *res.y_c(), 1., *residual);
+      J_d.TransMultVector(-1., *res.y_d(), 1., *residual);
+      ASSERT_EXCEPTION(residual->Amax() < 1e-10, INTERNAL_ABORT, "Problems.");
+   }
 
-   J_c.Print(Jnlst(), J_NONE, J_MAIN, "here");
-   J_d.Print(Jnlst(), J_NONE, J_MAIN, "here");
-
-   x.Print(Jnlst(), J_NONE, J_MAIN, "x");
-
-   resid.x_NonConst()->Print(Jnlst(), J_NONE, J_MAIN, "resid.x_NonConst()");
-
-   SmartPtr<const Vector> p = IpNLP().jac_vpt(x, *res.y_d(), *res.y_c());
-
-
-
-   // Print p
-   DBG_PRINT_VECTOR(0, "p", *p);
-   // Make non-const copy
-   SmartPtr<Vector> p2 = p->MakeNew();
-   W.MultVector(1., *res.x(), 0., *p2);
-   //p2->Print(Jnlst(), J_NONE, J_MAIN, "here");
-   p2->AddOneVector(1, *p, 1);
-
-   p2->Print(Jnlst(), J_NONE, J_MAIN, "sum");
-
-   p2->AddOneVector(-1, *resid.x_NonConst(), 1);
-
-   p2->Print(Jnlst(), J_NONE, J_MAIN, "diff");
-
-   std::cout << "p2->Amax() = " << p2->Amax() << std::endl;
-
-   DBG_PRINT((0, "p2->Amax() = %e\n", p2->Amax()));
-
-
-   // Assert that norm is small
-   DBG_ASSERT(p2->Amax() < 1e-12);
-
-   ASSERT_EXCEPTION(p2->Amax() < 1e-12, INTERNAL_ABORT, "Problems.");
-
+   W.MultVector(1., *res.x(), 1., *resid.x_NonConst());
 
    Px_L.MultVector(-1., *res.z_L(), 1., *resid.x_NonConst());
    Px_U.MultVector(1., *res.z_U(), 1., *resid.x_NonConst());
@@ -761,39 +738,25 @@ void PDFullSpaceSolver::ComputeResiduals(
       resid.s_NonConst()->Axpy(delta_s, *res.s());
    }
 
-   resid.y_d_NonConst()->Print(Jnlst(), J_NONE, J_MAIN, "resid.y_d_NonConst()");
-   resid.y_c_NonConst()->Print(Jnlst(), J_NONE, J_MAIN, "resid.y_c_NonConst()");
-
-   SmartPtr<Vector> ryc = resid.y_c_NonConst()->MakeNew();
-   SmartPtr<Vector> ryd = resid.y_d_NonConst()->MakeNew();
-
-   x.Print(Jnlst(), J_NONE, J_MAIN, "x");
-   res.x()->Print(Jnlst(), J_NONE, J_MAIN, "res.x");
-
-   IpNLP().jac_vp(x, *res.x(), *ryd, *ryc);
-   ryc->Print(Jnlst(), J_NONE, J_MAIN, "ryc");
-   ryd->Print(Jnlst(), J_NONE, J_MAIN, "ryd");
-
-   // c
-   // resid.y_c_NonConst <- 1 * J_c * res.x
-   J_c.MultVector(1., *res.x(), 0., *resid.y_c_NonConst());
-
-   resid.y_c_NonConst()->Print(Jnlst(), J_NONE, J_MAIN, "ref yc");
-
-   ryc->AddOneVector(-1, *resid.y_c_NonConst(), 1);
-   ASSERT_EXCEPTION(ryc->Amax() < 1e-12, INTERNAL_ABORT, "Problems.");
-
+   // c and d
+   if (use_jac_vp) {
+      resid.y_c_NonConst()->Set(0.);
+      resid.y_d_NonConst()->Set(0.);
+      IpNLP().jac_vp(x, *res.x(), *resid.y_d_NonConst(), *resid.y_c_NonConst());
+   } else {
+      J_c.MultVector(1., *res.x(), 0., *resid.y_c_NonConst());
+      J_d.MultVector(1., *res.x(), 0., *resid.y_d_NonConst());
+   }
+   if (use_jac_vp && jac_vp_sanity_check) {
+      SmartPtr<Vector> residual = resid.y_c_NonConst()->MakeNewCopy();
+      J_c.MultVector(-1., *res.x(), 1., *residual);
+      ASSERT_EXCEPTION(residual->Amax() < 1e-10, INTERNAL_ABORT, "Problems.");
+      residual = resid.y_d_NonConst()->MakeNewCopy();
+      J_d.MultVector(-1., *res.x(), 1., *residual);
+      ASSERT_EXCEPTION(residual->Amax() < 1e-10, INTERNAL_ABORT, "Problems.");
+   }
 
    resid.y_c_NonConst()->AddTwoVectors(-delta_c, *res.y_c(), -1., *rhs.y_c(), 1.);
-
-   // d
-   // resid.y_d_NonConst <- 1 * J_d * res.x
-   J_d.MultVector(1., *res.x(), 0., *resid.y_d_NonConst());
-   resid.y_d_NonConst()->Print(Jnlst(), J_NONE, J_MAIN, "ref yd");
-
-   ryd->AddOneVector(-1, *resid.y_d_NonConst(), 1);
-   ASSERT_EXCEPTION(ryd->Amax() < 1e-12, INTERNAL_ABORT, "Problems.");
-
    resid.y_d_NonConst()->AddTwoVectors(-1., *res.s(), -1., *rhs.y_d(), 1.);
    if( delta_d != 0. )
    {

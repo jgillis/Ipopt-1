@@ -1836,7 +1836,6 @@ bool TNLPAdapter::Eval_jac_c(
    Matrix&       jac_c
 )
 {
-   std::cout << "Entering Eval_jac_c" << std::endl;
    bool new_x = false;
    if( update_local_x(x) )
    {
@@ -1896,7 +1895,6 @@ bool TNLPAdapter::Eval_jac_d(
    Matrix&       jac_d
 )
 {
-   std::cout << "Entering Eval_jac_d" << std::endl;
    bool new_x = false;
    if( update_local_x(x) )
    {
@@ -1929,16 +1927,11 @@ bool TNLPAdapter::Eval_jac_vp(
 {
    Number* sx = new Number[n_full_x_];
 
-   std::cout << "n_full_x_:" << n_full_x_ << std::endl;
-
    ResortX(s_x, sx, false); // Do not add fixed values to sx
    //std::cout << "sx:" << std::vector<double>(sx, sx + n_full_x_) << std::endl;
 
    Number* vp = new Number[n_full_g_];
    tnlp_->eval_jac_g_vp(n_full_x_, full_x_, false, n_full_g_, sx, vp);
-   for (int i=0;i<n_full_g_;++i) {
-      std::cout << "vp[" << i << "]:" << vp[i] << std::endl;
-   }
 
    // unset vector have a nullptr for values
    s_c.Set(0.0);
@@ -1967,13 +1960,11 @@ bool TNLPAdapter::Eval_jac_vp(
    if (fixed_variable_treatment_ == MAKE_CONSTRAINT) {
       // J_c needed for handling make_constraint
       const GenTMatrixSpace* gt_jac_c = static_cast<const GenTMatrixSpace*>(&jac_c);
-      std::cout << "cast success?" << dynamic_cast<const GenTMatrixSpace*>(&jac_c) << std::endl;
 
       DBG_ASSERT(dynamic_cast<const GenTMatrixSpace*>(&jac_c));
 
       Index offset_jac = gt_jac_c->Nonzeros() - n_x_fixed_;
 
-      std::cout << "offset_jac:" << offset_jac << std::endl;
       Index offset_vec = s_c.Dim() - n_x_fixed_;
       for( Index i = 0; i < n_x_fixed_; i++ )
       {
@@ -1999,8 +1990,6 @@ bool TNLPAdapter::Eval_jac_vpt(
    DBG_ASSERT(dynamic_cast<DenseVector*>(&p));
    Number* values = dp->Values();
 
-
-   jnlst_->Printf(J_NONE, J_MAIN, "TNLPAdapter::Eval_jac_vpt %d\n", IsValid(P_x_full_x_));
    bool new_x = false;
    if( update_local_x(x) )
    {
@@ -2009,8 +1998,6 @@ bool TNLPAdapter::Eval_jac_vpt(
    Number* s = new Number[n_full_g_];
 
    ResortG(s_c, s_d, s);
-   jnlst_->Printf(J_NONE, J_MAIN, "resortG %f %f %f %f\n", s[0], s[1], s[2], s[3]);
-
 
    if( IsValid(P_x_full_x_) )
    {
@@ -2021,8 +2008,6 @@ bool TNLPAdapter::Eval_jac_vpt(
       {
          values[i] = vp[x_pos[i]];
       }
-      std::cout << "p.Dim():" << p.Dim() << std::endl;
-      std::cout << "n_full_x_:" << n_full_x_ << std::endl;
 
       delete[] vp;
    }
@@ -2036,7 +2021,6 @@ bool TNLPAdapter::Eval_jac_vpt(
    if (fixed_variable_treatment_ == MAKE_CONSTRAINT) {
       // J_c needed for handling make_constraint
       const GenTMatrixSpace* gt_jac_c = static_cast<const GenTMatrixSpace*>(&jac_c);
-      std::cout << "cast success?" << dynamic_cast<const GenTMatrixSpace*>(&jac_c) << std::endl;
 
       DBG_ASSERT(dynamic_cast<const GenTMatrixSpace*>(&jac_c));
 
@@ -2046,7 +2030,6 @@ bool TNLPAdapter::Eval_jac_vpt(
 
       Index offset_jac = gt_jac_c->Nonzeros() - n_x_fixed_;
 
-      std::cout << "offset_jac:" << offset_jac << std::endl;
       Index offset_vec = s_c.Dim() - n_x_fixed_;
       for( Index i = 0; i < n_x_fixed_; i++ )
       {
@@ -2984,7 +2967,6 @@ bool TNLPAdapter::internal_eval_jac_g(
 {
    if( x_tag_for_jac_g_ == x_tag_for_iterates_ )
    {
-      std::cout << "Already calculated" << std::endl;
       // already calculated!
       return true;
    }
@@ -2994,7 +2976,6 @@ bool TNLPAdapter::internal_eval_jac_g(
    bool retval;
    if( jacobian_approximation_ == JAC_EXACT )
    {
-      std::cout << "hey" << std::endl;
       retval = tnlp_->eval_jac_g(n_full_x_, full_x_, new_x, n_full_g_, nz_full_jac_g_, NULL, NULL, jac_g_);
    }
    else

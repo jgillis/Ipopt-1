@@ -646,17 +646,17 @@ SmartPtr<const Matrix> RestoIpoptNLP::jac_d(
    return GetRawPtr(retPtr);
 }
 
-SmartPtr<const Vector> RestoIpoptNLP::jac_vpt(
+void RestoIpoptNLP::jac_vpt(
    const Vector& x,
    const Vector& s_d,
-   const Vector& s_c
+   const Vector& s_c,
+   Vector& r
 )
 {
-   SmartPtr<Vector> ret = x.MakeNew();
    SmartPtr<const Matrix> J_c = jac_c(x);
    SmartPtr<const Matrix> J_d = jac_d(x);
-   J_c->TransMultVector(1.0, s_c, 0.0, *ret);
-   J_d->TransMultVector(1.0, s_d, 1.0, *ret);
+   J_c->TransMultVector(1.0, s_c, 0.0, r);
+   J_d->TransMultVector(1.0, s_d, 1.0, r);
 
    const CompoundVector* s_d_vec = static_cast<const CompoundVector*>(&s_d);
    DBG_ASSERT(s_d_vec);
@@ -674,16 +674,11 @@ SmartPtr<const Vector> RestoIpoptNLP::jac_vpt(
    DBG_ASSERT(c_vec);
    SmartPtr<const Vector> x_only = c_vec->GetComp(0);
 
-   // calculate the jacobian for the original problem
-   SmartPtr<const Vector> res = orig_ip_nlp_->jac_vpt(*x_only, *s_d_v, *s_c_v);
-
-   
-   CompoundVector* ret_cv = static_cast<CompoundVector*>(&(*ret));
+   CompoundVector* ret_cv = static_cast<CompoundVector*>(&r);
    DBG_ASSERT(ret_cv);
 
-   ret_cv->GetCompNonConst(0)->Copy(*res);
-
-   return ret;
+   // calculate the jacobian for the original problem
+   orig_ip_nlp_->jac_vpt(*x_only, *s_d_v, *s_c_v, *ret_cv->GetCompNonConst(0));
 }
 
 void RestoIpoptNLP::jac_vp(
