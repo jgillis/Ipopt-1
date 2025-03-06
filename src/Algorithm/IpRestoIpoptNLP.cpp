@@ -652,7 +652,38 @@ SmartPtr<const Vector> RestoIpoptNLP::jac_vpt(
    const Vector& s_c
 )
 {
-   assert(false && "Not implemented");
+   SmartPtr<Vector> ret = x.MakeNew();
+   SmartPtr<const Matrix> J_c = jac_c(x);
+   SmartPtr<const Matrix> J_d = jac_d(x);
+   J_c->TransMultVector(1.0, s_c, 0.0, *ret);
+   J_d->TransMultVector(1.0, s_d, 1.0, *ret);
+
+   const CompoundVector* s_d_vec = static_cast<const CompoundVector*>(&s_d);
+   DBG_ASSERT(s_d_vec);
+   SmartPtr<const Vector> s_d_v = s_d_vec->GetComp(0);
+
+   const CompoundVector* s_c_vec = static_cast<const CompoundVector*>(&s_c);
+   DBG_ASSERT(s_c_vec);
+   SmartPtr<const Vector> s_c_v = s_c_vec->GetComp(0);
+
+   // Here, we set the (0,0) block with the values from the
+   // original jac_c and set the factor for the -I (jac w.r.t. p_c)
+
+   // get out the x_only part
+   const CompoundVector* c_vec = static_cast<const CompoundVector*>(&x);
+   DBG_ASSERT(c_vec);
+   SmartPtr<const Vector> x_only = c_vec->GetComp(0);
+
+   // calculate the jacobian for the original problem
+   SmartPtr<const Vector> res = orig_ip_nlp_->jac_vpt(*x_only, *s_d_v, *s_c_v);
+
+   
+   CompoundVector* ret_cv = static_cast<CompoundVector*>(&(*ret));
+   DBG_ASSERT(ret_cv);
+
+   ret_cv->GetCompNonConst(0)->Copy(*res);
+
+   return ret;
 }
 
 void RestoIpoptNLP::jac_vp(
@@ -662,7 +693,41 @@ void RestoIpoptNLP::jac_vp(
    Vector& s_c
 )
 {
-   assert(false && "Not implemented");
+   // get out the x_only part
+   const CompoundVector* c_vec = static_cast<const CompoundVector*>(&x);
+   DBG_ASSERT(c_vec);
+   SmartPtr<const Vector> x_only = c_vec->GetComp(0);
+
+   const CompoundVector* cx_vec = static_cast<const CompoundVector*>(&s_x);
+   DBG_ASSERT(cx_vec);
+   SmartPtr<const Vector> s_x_only = cx_vec->GetComp(0);
+
+   CompoundVector* cd_vec = static_cast<CompoundVector*>(&s_d);
+   DBG_ASSERT(cd_vec);
+
+   CompoundVector* cc_vec = static_cast<CompoundVector*>(&s_c);
+   DBG_ASSERT(cc_vec);
+
+   SmartPtr<const Matrix> J_c = jac_c(x);
+   SmartPtr<const Matrix> J_d = jac_d(x);
+   const CompoundMatrix* compount_J_c = static_cast<const CompoundMatrix*>(&(*J_c));
+   DBG_ASSERT(compount_J_c);
+   const CompoundMatrix* compount_J_d = static_cast<const CompoundMatrix*>(&(*J_d));
+   DBG_ASSERT(compount_J_d);
+
+   s_c.Set(0.0);
+   s_d.Set(0.0);
+
+   orig_ip_nlp_->jac_vp(*x_only, *s_x_only, *cd_vec->GetCompNonConst(0),  *cc_vec->GetCompNonConst(0));
+
+   for (Index i = 1; i< cx_vec->NComps(); i++) {
+      if (IsValid(compount_J_c->GetComp(0, i)) && IsValid(cx_vec->GetComp(i))) {
+         compount_J_c->GetComp(0, i)->MultVector(1.0, *cx_vec->GetComp(i), 1.0, *cc_vec->GetCompNonConst(0));
+      }
+      if (IsValid(compount_J_d->GetComp(0, i)) && IsValid(cx_vec->GetComp(i))) {
+         compount_J_d->GetComp(0, i)->MultVector(1.0, *cx_vec->GetComp(i), 1.0, *cd_vec->GetCompNonConst(0));
+      }
+   }
 }
 
 SmartPtr<const SymMatrix> RestoIpoptNLP::h(
