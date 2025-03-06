@@ -320,6 +320,19 @@ bool StdInterfaceTNLP::eval_jac_g(
    return (retval != 0);
 }
 
+bool StdInterfaceTNLP::eval_jac_g_vp(
+   Index         n,
+   const Number* x,
+   bool          trans,
+   Index         m,
+   const Number* s,
+   Number*       values
+)
+{
+
+   return 0;
+}
+
 bool StdInterfaceTNLP::eval_h(
    Index         n,
    const Number* x,

@@ -32,6 +32,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <cassert>
 
 namespace Ipopt
 {
@@ -1835,6 +1836,7 @@ bool TNLPAdapter::Eval_jac_c(
    Matrix&       jac_c
 )
 {
+   std::cout << "Entering Eval_jac_c" << std::endl;
    bool new_x = false;
    if( update_local_x(x) )
    {
@@ -1894,6 +1896,7 @@ bool TNLPAdapter::Eval_jac_d(
    Matrix&       jac_d
 )
 {
+   std::cout << "Entering Eval_jac_d" << std::endl;
    bool new_x = false;
    if( update_local_x(x) )
    {
@@ -1914,6 +1917,144 @@ bool TNLPAdapter::Eval_jac_d(
       return true;
    }
    return false;
+}
+
+bool TNLPAdapter::Eval_jac_vp(
+   const Vector& x,
+   const Vector& s_x,
+   const MatrixSpace& jac_c,
+   Vector& s_d,
+   Vector& s_c
+)
+{
+   Number* sx = new Number[n_full_x_];
+
+   std::cout << "n_full_x_:" << n_full_x_ << std::endl;
+
+   ResortX(s_x, sx, false); // Do not add fixed values to sx
+   //std::cout << "sx:" << std::vector<double>(sx, sx + n_full_x_) << std::endl;
+
+   Number* vp = new Number[n_full_g_];
+   tnlp_->eval_jac_g_vp(n_full_x_, full_x_, false, n_full_g_, sx, vp);
+   for (int i=0;i<n_full_g_;++i) {
+      std::cout << "vp[" << i << "]:" << vp[i] << std::endl;
+   }
+
+   // unset vector have a nullptr for values
+   s_c.Set(0.0);
+   s_d.Set(0.0);
+
+   DenseVector* dc = static_cast<DenseVector*>(&s_c);
+   DBG_ASSERT(dynamic_cast<const DenseVector*>(&s_c));
+
+   const Index* c_pos = P_c_g_->ExpandedPosIndices();
+   Number* c_values = dc->Values();
+   for( Index i = 0; i < P_c_g_->NCols(); i++ )
+   {
+      c_values[i] = vp[c_pos[i]];
+   }
+
+   DenseVector* dd = static_cast<DenseVector*>(&s_d);
+   DBG_ASSERT(dynamic_cast<DenseVector*>(&s_d));
+
+   const Index* d_pos = P_d_g_->ExpandedPosIndices();
+   Number* d_values = dd->Values();
+   for( Index i = 0; i < P_d_g_->NCols(); i++ )
+   {
+      d_values[i] = vp[d_pos[i]];
+   }
+
+   if (fixed_variable_treatment_ == MAKE_CONSTRAINT) {
+      // J_c needed for handling make_constraint
+      const GenTMatrixSpace* gt_jac_c = static_cast<const GenTMatrixSpace*>(&jac_c);
+      std::cout << "cast success?" << dynamic_cast<const GenTMatrixSpace*>(&jac_c) << std::endl;
+
+      DBG_ASSERT(dynamic_cast<const GenTMatrixSpace*>(&jac_c));
+
+      Index offset_jac = gt_jac_c->Nonzeros() - n_x_fixed_;
+
+      std::cout << "offset_jac:" << offset_jac << std::endl;
+      Index offset_vec = s_c.Dim() - n_x_fixed_;
+      for( Index i = 0; i < n_x_fixed_; i++ )
+      {
+         c_values[offset_vec+i] = sx[gt_jac_c->Jcols()[offset_jac+i]-1];
+      }
+   }
+
+   delete[] vp;
+   delete[] sx;
+
+   return true;
+}
+
+bool TNLPAdapter::Eval_jac_vpt(
+   const Vector& x,
+   const Vector& s_d,
+   const Vector& s_c,
+   const MatrixSpace& jac_c,
+   Vector& p
+)
+{
+   DenseVector* dp = static_cast<DenseVector*>(&p);
+   DBG_ASSERT(dynamic_cast<DenseVector*>(&p));
+   Number* values = dp->Values();
+
+
+   jnlst_->Printf(J_NONE, J_MAIN, "TNLPAdapter::Eval_jac_vpt %d\n", IsValid(P_x_full_x_));
+   bool new_x = false;
+   if( update_local_x(x) )
+   {
+      new_x = true;
+   }
+   Number* s = new Number[n_full_g_];
+
+   ResortG(s_c, s_d, s);
+   jnlst_->Printf(J_NONE, J_MAIN, "resortG %f %f %f %f\n", s[0], s[1], s[2], s[3]);
+
+
+   if( IsValid(P_x_full_x_) )
+   {
+      Number* vp = new Number[n_full_x_];
+      tnlp_->eval_jac_g_vp(n_full_x_, full_x_, true, n_full_g_, s, vp);
+      const Index* x_pos = P_x_full_x_->ExpandedPosIndices();
+      for( Index i = 0; i < p.Dim(); i++ )
+      {
+         values[i] = vp[x_pos[i]];
+      }
+      std::cout << "p.Dim():" << p.Dim() << std::endl;
+      std::cout << "n_full_x_:" << n_full_x_ << std::endl;
+
+      delete[] vp;
+   }
+   else
+   {
+      tnlp_->eval_jac_g_vp(n_full_x_, full_x_, true, n_full_g_, s, values);
+   }
+
+   delete[] s;
+   
+   if (fixed_variable_treatment_ == MAKE_CONSTRAINT) {
+      // J_c needed for handling make_constraint
+      const GenTMatrixSpace* gt_jac_c = static_cast<const GenTMatrixSpace*>(&jac_c);
+      std::cout << "cast success?" << dynamic_cast<const GenTMatrixSpace*>(&jac_c) << std::endl;
+
+      DBG_ASSERT(dynamic_cast<const GenTMatrixSpace*>(&jac_c));
+
+      const DenseVector* ds_c = static_cast<const DenseVector*>(&s_c);
+      DBG_ASSERT(dynamic_cast<const DenseVector*>(&s_c));
+      const Number* s_c_values = ds_c->Values();
+
+      Index offset_jac = gt_jac_c->Nonzeros() - n_x_fixed_;
+
+      std::cout << "offset_jac:" << offset_jac << std::endl;
+      Index offset_vec = s_c.Dim() - n_x_fixed_;
+      for( Index i = 0; i < n_x_fixed_; i++ )
+      {
+         values[gt_jac_c->Jcols()[offset_jac+i]-1] += s_c_values[offset_vec+i];
+      }
+   }
+
+   return true;
 }
 
 bool TNLPAdapter::Eval_h(
@@ -2843,6 +2984,7 @@ bool TNLPAdapter::internal_eval_jac_g(
 {
    if( x_tag_for_jac_g_ == x_tag_for_iterates_ )
    {
+      std::cout << "Already calculated" << std::endl;
       // already calculated!
       return true;
    }
@@ -2852,6 +2994,7 @@ bool TNLPAdapter::internal_eval_jac_g(
    bool retval;
    if( jacobian_approximation_ == JAC_EXACT )
    {
+      std::cout << "hey" << std::endl;
       retval = tnlp_->eval_jac_g(n_full_x_, full_x_, new_x, n_full_g_, nz_full_jac_g_, NULL, NULL, jac_g_);
    }
    else

@@ -645,6 +645,68 @@ SmartPtr<const Vector> OrigIpoptNLP::d(
    return retValue;
 }
 
+/** Jacobian Matrix for equality constraints */
+void OrigIpoptNLP::jac_vp(
+   const Vector& x,
+   const Vector& s_x,
+   Vector& s_d,
+   Vector& s_c
+) {
+   SmartPtr<const Vector> unscaled_x = get_unscaled_x(x);
+
+   unscaled_x->Print(*jnlst_, J_NONE, J_MAIN, "x_unscaled");
+   bool success = nlp_->Eval_jac_vp(*unscaled_x, s_x, *jac_c_space_, s_d, s_c);
+
+   s_c.Print(*jnlst_, J_NONE, J_MAIN, "s_c");
+   s_d.Print(*jnlst_, J_NONE, J_MAIN, "s_d");
+
+   SmartPtr<const Vector> y_c = NLP_scaling()->apply_vector_scaling_c(&s_c);
+   SmartPtr<const Vector> y_d = NLP_scaling()->apply_vector_scaling_d(&s_d);
+
+   y_c->Print(*jnlst_, J_NONE, J_MAIN, "y_c");
+   y_d->Print(*jnlst_, J_NONE, J_MAIN, "y_d");
+
+   ASSERT_EXCEPTION(!NLP_scaling()->have_x_scaling(), INTERNAL_ABORT, "x scaling not supported (note: does not occur for GradientScaling)");
+   s_d.Copy(*y_d);
+   s_c.Copy(*y_c);
+}
+
+/** Jacobian Matrix for equality constraints */
+SmartPtr<const Vector> OrigIpoptNLP::jac_vpt(
+   const Vector& x,
+   const Vector& s_d,
+   const Vector& s_c
+)
+{
+   SmartPtr<Vector> p = x_space_->MakeNew();
+   // print message to journal
+   jnlst_->Printf(J_NONE, J_MAIN, "OrigIpoptNLP::jac_vpt\n");
+   SmartPtr<const Vector> unscaled_x = get_unscaled_x(x);
+   // debug print
+   unscaled_x->Print(*jnlst_, J_NONE, J_MAIN, "unscaled_x");
+   s_d.Print(*jnlst_, J_NONE, J_MAIN, "s_d");
+   s_c.Print(*jnlst_, J_NONE, J_MAIN, "s_c");
+
+   SmartPtr<const Vector> y_c = NLP_scaling()->apply_vector_scaling_c(&s_c);
+   SmartPtr<const Vector> y_d = NLP_scaling()->apply_vector_scaling_d(&s_d);
+   std::cout << "scaling c?" << NLP_scaling()->have_c_scaling() << std::endl;
+   std::cout << "scaling d?" << NLP_scaling()->have_d_scaling() << std::endl;
+
+   y_d->Print(*jnlst_, J_NONE, J_MAIN, "s_d scaled");
+   y_c->Print(*jnlst_, J_NONE, J_MAIN, "s_c scaled");
+   bool success = nlp_->Eval_jac_vpt(*unscaled_x, *y_d, *y_c, *jac_c_space_, *p);
+
+
+
+   ASSERT_EXCEPTION(!NLP_scaling()->have_x_scaling(), INTERNAL_ABORT, "x scaling not supported (note: does not occur for GradientScaling)");
+
+
+
+   //assert(false);
+   return p;
+   
+}
+
 SmartPtr<const Matrix> OrigIpoptNLP::jac_c(
    const Vector& x
 )
@@ -674,7 +736,12 @@ SmartPtr<const Matrix> OrigIpoptNLP::jac_c(
          jac_c_evals_++;
          SmartPtr<Matrix> unscaled_jac_c = jac_c_space_->MakeNew();
 
+         x.Print(*jnlst_, J_NONE, J_MAIN, "x_scaled");
+
+
          SmartPtr<const Vector> unscaled_x = get_unscaled_x(x);
+
+         unscaled_x->Print(*jnlst_, J_NONE, J_MAIN, "x_unscaled");
          timing_statistics_.jac_c_eval_time().Start();
          bool success = nlp_->Eval_jac_c(*unscaled_x, *unscaled_jac_c);
          timing_statistics_.jac_c_eval_time().End();

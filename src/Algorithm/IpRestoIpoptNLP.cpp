@@ -646,6 +646,25 @@ SmartPtr<const Matrix> RestoIpoptNLP::jac_d(
    return GetRawPtr(retPtr);
 }
 
+SmartPtr<const Vector> RestoIpoptNLP::jac_vpt(
+   const Vector& x,
+   const Vector& s_d,
+   const Vector& s_c
+)
+{
+   assert(false && "Not implemented");
+}
+
+void RestoIpoptNLP::jac_vp(
+   const Vector& x,
+   const Vector& s_x,
+   Vector& s_d,
+   Vector& s_c
+)
+{
+   assert(false && "Not implemented");
+}
+
 SmartPtr<const SymMatrix> RestoIpoptNLP::h(
    const Vector& /*x*/,
    Number        /*obj_factor*/,

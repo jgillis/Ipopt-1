@@ -186,6 +186,7 @@ bool PDFullSpaceSolver::Solve(
    SmartPtr<const Vector> slack_s_U = IpCq().curr_slack_s_U();
    SmartPtr<const Vector> sigma_x = IpCq().curr_sigma_x();
    SmartPtr<const Vector> sigma_s = IpCq().curr_sigma_s();
+   SmartPtr<const Vector> x = IpData().curr()->x();
    DBG_PRINT_VECTOR(2, "Sigma_x", *sigma_x);
    DBG_PRINT_VECTOR(2, "Sigma_s", *sigma_s);
 
@@ -233,7 +234,7 @@ bool PDFullSpaceSolver::Solve(
          if( Jnlst().ProduceOutput(J_MOREDETAILED, J_LINEAR_ALGEBRA) )
          {
             SmartPtr<IteratesVector> resid = res.MakeNewIteratesVector(true);
-            ComputeResiduals(*W, *J_c, *J_d, *Px_L, *Px_U, *Pd_L, *Pd_U, *z_L, *z_U, *v_L, *v_U, *slack_x_L, *slack_x_U,
+            ComputeResiduals(*W, *x, *J_c, *J_d, *Px_L, *Px_U, *Pd_L, *Pd_U, *z_L, *z_U, *v_L, *v_U, *slack_x_L, *slack_x_U,
                              *slack_s_L, *slack_s_U, *sigma_x, *sigma_s, alpha, beta, rhs, res, *resid);
          }
          break;
@@ -243,7 +244,7 @@ bool PDFullSpaceSolver::Solve(
       SmartPtr<IteratesVector> resid = res.MakeNewIteratesVector(true);
 
       // ToDo don't to that after max refinement?
-      ComputeResiduals(*W, *J_c, *J_d, *Px_L, *Px_U, *Pd_L, *Pd_U, *z_L, *z_U, *v_L, *v_U, *slack_x_L, *slack_x_U,
+      ComputeResiduals(*W, *x, *J_c, *J_d, *Px_L, *Px_U, *Pd_L, *Pd_U, *z_L, *z_U, *v_L, *v_U, *slack_x_L, *slack_x_U,
                        *slack_s_L, *slack_s_U, *sigma_x, *sigma_s, alpha, beta, rhs, res, *resid);
 
       Number residual_ratio = ComputeResidualRatio(rhs, res, *resid);
@@ -263,7 +264,7 @@ bool PDFullSpaceSolver::Solve(
                                   *z_U, *v_L, *v_U, *slack_x_L, *slack_x_U, *slack_s_L, *slack_s_U, *sigma_x, *sigma_s, -1., 1., *resid, res);
          ASSERT_EXCEPTION(solve_retval, INTERNAL_ABORT, "SolveOnce returns false during iterative refinement.");
 
-         ComputeResiduals(*W, *J_c, *J_d, *Px_L, *Px_U, *Pd_L, *Pd_U, *z_L, *z_U, *v_L, *v_U, *slack_x_L, *slack_x_U,
+         ComputeResiduals(*W, *x, *J_c, *J_d, *Px_L, *Px_U, *Pd_L, *Pd_U, *z_L, *z_U, *v_L, *v_U, *slack_x_L, *slack_x_U,
                           *slack_s_L, *slack_s_U, *sigma_x, *sigma_s, alpha, beta, rhs, res, *resid);
 
          residual_ratio = ComputeResidualRatio(rhs, res, *resid);
@@ -666,6 +667,7 @@ bool PDFullSpaceSolver::SolveOnce(
 
 void PDFullSpaceSolver::ComputeResiduals(
    const SymMatrix&      W,
+   const Vector&         x,
    const Matrix&         J_c,
    const Matrix&         J_d,
    const Matrix&         Px_L,
@@ -705,8 +707,47 @@ void PDFullSpaceSolver::ComputeResiduals(
 
    // x
    W.MultVector(1., *res.x(), 0., *resid.x_NonConst());
+   //resid.x_NonConst()->Print(Jnlst(), J_NONE, J_MAIN, "here");
+   // resid.x_NonConst() += J_c^T * res.y_c();
    J_c.TransMultVector(1., *res.y_c(), 1., *resid.x_NonConst());
    J_d.TransMultVector(1., *res.y_d(), 1., *resid.x_NonConst());
+
+   J_c.Print(Jnlst(), J_NONE, J_MAIN, "here");
+   J_d.Print(Jnlst(), J_NONE, J_MAIN, "here");
+
+   x.Print(Jnlst(), J_NONE, J_MAIN, "x");
+
+   resid.x_NonConst()->Print(Jnlst(), J_NONE, J_MAIN, "resid.x_NonConst()");
+
+   SmartPtr<const Vector> p = IpNLP().jac_vpt(x, *res.y_d(), *res.y_c());
+
+
+
+   // Print p
+   DBG_PRINT_VECTOR(0, "p", *p);
+   // Make non-const copy
+   SmartPtr<Vector> p2 = p->MakeNew();
+   W.MultVector(1., *res.x(), 0., *p2);
+   //p2->Print(Jnlst(), J_NONE, J_MAIN, "here");
+   p2->AddOneVector(1, *p, 1);
+
+   p2->Print(Jnlst(), J_NONE, J_MAIN, "sum");
+
+   p2->AddOneVector(-1, *resid.x_NonConst(), 1);
+
+   p2->Print(Jnlst(), J_NONE, J_MAIN, "diff");
+
+   std::cout << "p2->Amax() = " << p2->Amax() << std::endl;
+
+   DBG_PRINT((0, "p2->Amax() = %e\n", p2->Amax()));
+
+
+   // Assert that norm is small
+   DBG_ASSERT(p2->Amax() < 1e-12);
+
+   ASSERT_EXCEPTION(p2->Amax() < 1e-12, INTERNAL_ABORT, "Problems.");
+
+
    Px_L.MultVector(-1., *res.z_L(), 1., *resid.x_NonConst());
    Px_U.MultVector(1., *res.z_U(), 1., *resid.x_NonConst());
    resid.x_NonConst()->AddTwoVectors(delta_x, *res.x(), -1., *rhs.x(), 1.);
@@ -720,12 +761,39 @@ void PDFullSpaceSolver::ComputeResiduals(
       resid.s_NonConst()->Axpy(delta_s, *res.s());
    }
 
+   resid.y_d_NonConst()->Print(Jnlst(), J_NONE, J_MAIN, "resid.y_d_NonConst()");
+   resid.y_c_NonConst()->Print(Jnlst(), J_NONE, J_MAIN, "resid.y_c_NonConst()");
+
+   SmartPtr<Vector> ryc = resid.y_c_NonConst()->MakeNew();
+   SmartPtr<Vector> ryd = resid.y_d_NonConst()->MakeNew();
+
+   x.Print(Jnlst(), J_NONE, J_MAIN, "x");
+   res.x()->Print(Jnlst(), J_NONE, J_MAIN, "res.x");
+
+   IpNLP().jac_vp(x, *res.x(), *ryd, *ryc);
+   ryc->Print(Jnlst(), J_NONE, J_MAIN, "ryc");
+   ryd->Print(Jnlst(), J_NONE, J_MAIN, "ryd");
+
    // c
+   // resid.y_c_NonConst <- 1 * J_c * res.x
    J_c.MultVector(1., *res.x(), 0., *resid.y_c_NonConst());
+
+   resid.y_c_NonConst()->Print(Jnlst(), J_NONE, J_MAIN, "ref yc");
+
+   ryc->AddOneVector(-1, *resid.y_c_NonConst(), 1);
+   ASSERT_EXCEPTION(ryc->Amax() < 1e-12, INTERNAL_ABORT, "Problems.");
+
+
    resid.y_c_NonConst()->AddTwoVectors(-delta_c, *res.y_c(), -1., *rhs.y_c(), 1.);
 
    // d
+   // resid.y_d_NonConst <- 1 * J_d * res.x
    J_d.MultVector(1., *res.x(), 0., *resid.y_d_NonConst());
+   resid.y_d_NonConst()->Print(Jnlst(), J_NONE, J_MAIN, "ref yd");
+
+   ryd->AddOneVector(-1, *resid.y_d_NonConst(), 1);
+   ASSERT_EXCEPTION(ryd->Amax() < 1e-12, INTERNAL_ABORT, "Problems.");
+
    resid.y_d_NonConst()->AddTwoVectors(-1., *res.s(), -1., *rhs.y_d(), 1.);
    if( delta_d != 0. )
    {

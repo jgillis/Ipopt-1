@@ -177,6 +177,7 @@ private:
     */
    void ComputeResiduals(
       const SymMatrix&      W,
+      const Vector&         x,
       const Matrix&         J_c,
       const Matrix&         J_d,
       const Matrix&         Px_L,

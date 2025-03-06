@@ -149,6 +149,15 @@ public:
       Number*       values
    );
 
+   virtual bool eval_jac_g_vp(
+      Index         n,
+      const Number* x,
+      bool          trans,
+      Index         m,
+      const Number* s,
+      Number*       values
+   );
+
    virtual bool eval_h(
       Index         n,
       const Number* x,

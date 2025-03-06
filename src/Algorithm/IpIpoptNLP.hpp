@@ -115,6 +115,21 @@ public:
       const Vector& x
    ) = 0;
 
+   /** Jacobian Matrix for equality constraints */
+   virtual SmartPtr<const Vector> jac_vpt(
+      const Vector& x,
+      const Vector& s_d,
+      const Vector& s_c
+   )=0;
+
+   /** Jacobian Matrix for equality constraints */
+   virtual void jac_vp(
+      const Vector& x,
+      const Vector& s_x,
+      Vector& s_d,
+      Vector& s_c
+   )=0;
+
    /** Inequality constraint residual (reformulated
     *  as equalities with slacks
     */

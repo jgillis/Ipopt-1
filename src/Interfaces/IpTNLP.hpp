@@ -430,6 +430,16 @@ public:
    ) = 0;
    // [TNLP_eval_jac_g]
 
+   // Compute J * s (trans=false) or J^T * s  (trans=true)
+   virtual bool eval_jac_g_vp(
+      Index         n,
+      const Number* x,
+      bool          trans,
+      Index         m,
+      const Number* s,
+      Number*       values
+   ) = 0;
+
    /** Method to request either the sparsity structure or the values of the Hessian of the Lagrangian.
     *
     * The Hessian matrix that %Ipopt uses is

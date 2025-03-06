@@ -177,7 +177,20 @@ public:
       const Vector& x,
       Matrix&       jac_d
    );
-
+   virtual bool Eval_jac_vpt(
+      const Vector& x,
+      const Vector& s_d,
+      const Vector& s_c,
+      const MatrixSpace& jac_c,
+      Vector& p
+   );
+   virtual bool Eval_jac_vp(
+      const Vector& x,
+      const Vector& s_x,
+      const MatrixSpace& jac_c,
+      Vector& s_d,
+      Vector& s_c
+   );
    virtual bool Eval_h(
       const Vector& x,
       Number        obj_factor,
