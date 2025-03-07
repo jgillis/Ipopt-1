@@ -734,6 +734,9 @@ private:
    bool warm_start_same_structure_;
    /** Desired value of the barrier parameter */
    Number mu_target_;
+
+   bool jac_vp_;
+   bool jac_vp_test_;
    ///@}
 
    /** @name Caches for slacks */

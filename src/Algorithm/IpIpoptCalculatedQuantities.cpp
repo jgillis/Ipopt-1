@@ -198,6 +198,8 @@ bool IpoptCalculatedQuantities::Initialize(
    // The following option is registered by OrigIpoptNLP
    options.GetBoolValue("warm_start_same_structure", warm_start_same_structure_, prefix);
    options.GetNumericValue("mu_target", mu_target_, prefix);
+   options.GetBoolValue("jac_vp", jac_vp_, prefix);
+   options.GetBoolValue("jac_vp_test", jac_vp_test_, prefix);
 
    if( !warm_start_same_structure_ )
    {
@@ -1312,7 +1314,20 @@ SmartPtr<const Vector> IpoptCalculatedQuantities::curr_jac_c_times_vec(
    if( !curr_jac_c_times_vec_cache_.GetCachedResult2Dep(result, *x, vec) )
    {
       SmartPtr<Vector> tmp = ip_data_->curr()->y_c()->MakeNew();
-      curr_jac_c()->MultVector(1.0, vec, 0., *tmp);
+
+
+      if (jac_vp_) {
+         SmartPtr<Vector> dummy = ip_data_->curr()->s()->MakeNew();
+         ip_nlp_->jac_vp(*ip_data_->curr()->x(), vec, *dummy, *tmp);
+         if (jac_vp_test_) {
+            SmartPtr<Vector> residual = tmp->MakeNewCopy();
+            curr_jac_c()->MultVector(-1.0, vec, 0., *residual);
+            ASSERT_EXCEPTION(residual->Amax() < 1e-10, INTERNAL_ABORT, "Problems.");
+         }
+      } else {
+         curr_jac_c()->MultVector(1.0, vec, 0., *tmp);
+      }
+
       result = ConstPtr(tmp);
       curr_jac_c_times_vec_cache_.AddCachedResult2Dep(result, *x, vec);
    }
@@ -1334,7 +1349,17 @@ SmartPtr<const Vector> IpoptCalculatedQuantities::curr_jac_d_times_vec(
       SmartPtr<Vector> tmp = ip_data_->curr()->s()->MakeNew();
       DBG_PRINT_VECTOR(1, "vec", vec);
       DBG_PRINT_MATRIX(2, "curr_jac_d()", *curr_jac_d());
-      curr_jac_d()->MultVector(1.0, vec, 0., *tmp);
+      if (jac_vp_) {
+         SmartPtr<Vector> dummy = ip_data_->curr()->y_c()->MakeNew();
+         ip_nlp_->jac_vp(*ip_data_->curr()->x(), vec, *tmp, *dummy);
+         if (jac_vp_test_) {
+            SmartPtr<Vector> residual = tmp->MakeNewCopy();
+            curr_jac_d()->MultVector(-1.0, vec, 0., *residual);
+            ASSERT_EXCEPTION(residual->Amax() < 1e-10, INTERNAL_ABORT, "Problems.");
+         }
+      } else {
+         curr_jac_d()->MultVector(1.0, vec, 0., *tmp);
+      }
       result = ConstPtr(tmp);
       curr_jac_d_times_vec_cache_.AddCachedResult2Dep(result, *x, vec);
    }
@@ -1384,7 +1409,20 @@ SmartPtr<const Vector> IpoptCalculatedQuantities::curr_jac_cT_times_vec(
       if( !trial_jac_cT_times_vec_cache_.GetCachedResult2Dep(result, *x, vec) )
       {
          SmartPtr<Vector> tmp = x->MakeNew();
-         curr_jac_c()->TransMultVector(1.0, vec, 0., *tmp);
+
+         if (jac_vp_) {
+            SmartPtr<Vector> dummy = ip_data_->curr()->s()->MakeNew();
+            dummy->Set(0.);
+            ip_nlp_->jac_vpt(*x, *dummy, vec, *tmp);
+            if (jac_vp_test_) {
+               SmartPtr<Vector> residual = tmp->MakeNewCopy();
+               curr_jac_c()->TransMultVector(-1.0, vec, 1., *residual);
+               ASSERT_EXCEPTION(residual->Amax() < 1e-10, INTERNAL_ABORT, "Problems.");
+            }
+         } else {
+            curr_jac_c()->TransMultVector(1.0, vec, 0., *tmp);
+         }
+         
          result = ConstPtr(tmp);
       }
       curr_jac_cT_times_vec_cache_.AddCachedResult2Dep(result, *x, vec);
@@ -1407,7 +1445,20 @@ SmartPtr<const Vector> IpoptCalculatedQuantities::trial_jac_cT_times_vec(
       if( !curr_jac_cT_times_vec_cache_.GetCachedResult2Dep(result, *x, vec) )
       {
          SmartPtr<Vector> tmp = x->MakeNew();
-         trial_jac_c()->TransMultVector(1.0, vec, 0., *tmp);
+
+         if (jac_vp_) {
+            SmartPtr<Vector> dummy = ip_data_->trial()->y_d()->MakeNew();
+            dummy->Set(0.);
+            ip_nlp_->jac_vpt(*x, *dummy, vec, *tmp);
+            if (jac_vp_test_) {
+               SmartPtr<Vector> residual = tmp->MakeNewCopy();
+               trial_jac_c()->TransMultVector(-1.0, vec, 1., *residual);
+               ASSERT_EXCEPTION(residual->Amax() < 1e-10, INTERNAL_ABORT, "Problems.");
+            }
+         } else {
+            trial_jac_c()->TransMultVector(1.0, vec, 0., *tmp);
+         }
+
          result = ConstPtr(tmp);
       }
       trial_jac_cT_times_vec_cache_.AddCachedResult2Dep(result, *x, vec);
@@ -1433,7 +1484,18 @@ SmartPtr<const Vector> IpoptCalculatedQuantities::curr_jac_dT_times_vec(
          DBG_PRINT_VECTOR(2, "vec", vec);
          DBG_PRINT_VECTOR(2, "tmp", *tmp);
          DBG_PRINT_MATRIX(2, "curr_jac_d()", *curr_jac_d());
-         curr_jac_d()->TransMultVector(1.0, vec, 0., *tmp);
+         if (jac_vp_) {
+            SmartPtr<Vector> dummy = ip_data_->curr()->y_c()->MakeNew();
+            dummy->Set(0.);
+            ip_nlp_->jac_vpt(*x, vec, *dummy, *tmp);
+            if (jac_vp_test_) {
+               SmartPtr<Vector> residual = tmp->MakeNewCopy();
+               curr_jac_d()->TransMultVector(-1.0, vec, 1., *residual);
+               ASSERT_EXCEPTION(residual->Amax() < 1e-10, INTERNAL_ABORT, "Problems.");
+            }
+         } else {
+            curr_jac_d()->TransMultVector(1.0, vec, 0., *tmp);
+         }
          result = ConstPtr(tmp);
       }
       curr_jac_dT_times_vec_cache_.AddCachedResult2Dep(result, *x, vec);
@@ -1456,7 +1518,18 @@ SmartPtr<const Vector> IpoptCalculatedQuantities::trial_jac_dT_times_vec(
       if( !curr_jac_dT_times_vec_cache_.GetCachedResult2Dep(result, *x, vec) )
       {
          SmartPtr<Vector> tmp = x->MakeNew();
-         trial_jac_d()->TransMultVector(1.0, vec, 0., *tmp);
+         if (jac_vp_) {
+            SmartPtr<Vector> dummy = ip_data_->trial()->y_c()->MakeNew();
+            dummy->Set(0.);
+            ip_nlp_->jac_vpt(*x, vec, *dummy, *tmp);
+            if (jac_vp_test_) {
+               SmartPtr<Vector> residual = tmp->MakeNewCopy();
+               trial_jac_d()->TransMultVector(-1.0, vec, 1., *residual);
+               ASSERT_EXCEPTION(residual->Amax() < 1e-10, INTERNAL_ABORT, "Problems.");
+            }
+         } else {
+            trial_jac_d()->TransMultVector(1.0, vec, 0., *tmp);
+         }
          result = ConstPtr(tmp);
       }
       trial_jac_dT_times_vec_cache_.AddCachedResult2Dep(result, *x, vec);

@@ -159,6 +159,12 @@ void TNLPAdapter::RegisterOptions(
       "finite-difference-values", "user-provided structure, values by finite differences",
       "",
       true);
+   roptions->AddBoolOption(
+      "jac_vp",
+      "Request Jacobian-vector products from NLP instead of computing them from Jacobian",
+      false,
+      "",
+      true);
    roptions->AddStringOption2(
       "gradient_approximation",
       "Specifies technique to compute objective Gradient",
@@ -220,6 +226,10 @@ void TNLPAdapter::RegisterOptions(
       10.,
       "If a random perturbation of a points is required, this number indicates the maximal perturbation. "
       "This is for example used when determining the center point at which the finite difference derivative test is executed.");
+   roptions->AddBoolOption(
+      "jac_vp_test",
+      "Enable jac-vector-product checker",
+      false);
 }
 
 bool TNLPAdapter::ProcessOptions(
@@ -2033,7 +2043,7 @@ bool TNLPAdapter::Eval_jac_vpt(
       Index offset_vec = s_c.Dim() - n_x_fixed_;
       for( Index i = 0; i < n_x_fixed_; i++ )
       {
-         values[gt_jac_c->Jcols()[offset_jac+i]-1] += s_c_values[offset_vec+i];
+         values[gt_jac_c->Jcols()[offset_jac+i]-1] += ds_c-> IsHomogeneous()? ds_c->Scalar() : s_c_values[offset_vec+i];
       }
    }
 

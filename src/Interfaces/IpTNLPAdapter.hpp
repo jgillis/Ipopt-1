@@ -499,6 +499,8 @@ private:
    Number derivative_test_tol_;
    /** Flag indicating if all test values should be printed, or only those violating the threshold. */
    bool derivative_test_print_all_;
+   /** Verify the correctness of Jacobian-vector products as supplied by the NLP */
+   bool jac_vp_test_;
    /** Index of first quantity to be checked. */
    Index derivative_test_first_index_;
    /** Flag indicating whether the TNLP with identical structure has already been solved before. */
@@ -509,6 +511,8 @@ private:
    Index num_linear_variables_;
    /** Flag indicating how Jacobian is computed. */
    JacobianApproxEnum jacobian_approximation_;
+   /** Flag indicating of NLP Jacobian-vector products are used */
+   bool jac_vp_;
    /** Flag indicating how objective Gradient is computed. */
    GradientApproxEnum gradient_approximation_;
    /** Size of the perturbation for the derivative approximation */

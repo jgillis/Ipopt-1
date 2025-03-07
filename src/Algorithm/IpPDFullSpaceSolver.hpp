@@ -137,6 +137,9 @@ private:
 
    /** Do curvature test with primal regularization */
    bool neg_curv_test_reg_;
+
+   bool jac_vp_;
+   bool jac_vp_test_;
    ///@}
 
    /** Internal function for a single backsolve (which will be used

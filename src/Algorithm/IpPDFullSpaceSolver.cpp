@@ -114,6 +114,9 @@ bool PDFullSpaceSolver::InitializeImpl(
    options.GetNumericValue("residual_improvement_factor", residual_improvement_factor_, prefix);
    options.GetNumericValue("neg_curv_test_tol", neg_curv_test_tol_, prefix);
    options.GetBoolValue("neg_curv_test_reg", neg_curv_test_reg_, prefix);
+   options.GetBoolValue("jac_vp", jac_vp_, prefix);
+   options.GetBoolValue("jac_vp_test", jac_vp_test_, prefix);
+   
 
    // Reset internal flags and data
    augsys_improved_ = false;
@@ -705,18 +708,15 @@ void PDFullSpaceSolver::ComputeResiduals(
 
    SmartPtr<Vector> tmp;
 
-   bool use_jac_vp = true;
-   bool jac_vp_sanity_check = true;
-
    // x
-   if (use_jac_vp) {
+   if (jac_vp_) {
       resid.x_NonConst()->Set(0.);
       IpNLP().jac_vpt(x, *res.y_d(), *res.y_c(), *resid.x_NonConst());
    } else {
       J_c.TransMultVector(1., *res.y_c(), 0., *resid.x_NonConst());
       J_d.TransMultVector(1., *res.y_d(), 1., *resid.x_NonConst());
    }
-   if (use_jac_vp && jac_vp_sanity_check) {
+   if (jac_vp_ && jac_vp_test_) {
       SmartPtr<Vector> residual = resid.x_NonConst()->MakeNewCopy();
       J_c.TransMultVector(-1., *res.y_c(), 1., *residual);
       J_d.TransMultVector(-1., *res.y_d(), 1., *residual);
@@ -739,7 +739,7 @@ void PDFullSpaceSolver::ComputeResiduals(
    }
 
    // c and d
-   if (use_jac_vp) {
+   if (jac_vp_) {
       resid.y_c_NonConst()->Set(0.);
       resid.y_d_NonConst()->Set(0.);
       IpNLP().jac_vp(x, *res.x(), *resid.y_d_NonConst(), *resid.y_c_NonConst());
@@ -747,7 +747,7 @@ void PDFullSpaceSolver::ComputeResiduals(
       J_c.MultVector(1., *res.x(), 0., *resid.y_c_NonConst());
       J_d.MultVector(1., *res.x(), 0., *resid.y_d_NonConst());
    }
-   if (use_jac_vp && jac_vp_sanity_check) {
+   if (jac_vp_ && jac_vp_test_) {
       SmartPtr<Vector> residual = resid.y_c_NonConst()->MakeNewCopy();
       J_c.MultVector(-1., *res.x(), 1., *residual);
       ASSERT_EXCEPTION(residual->Amax() < 1e-10, INTERNAL_ABORT, "Problems.");
