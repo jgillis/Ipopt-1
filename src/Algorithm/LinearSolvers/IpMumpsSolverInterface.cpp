@@ -739,28 +739,29 @@ ESymSolverStatus MumpsSolverInterface::Solve(
    }
    if( mumps_dump_stats_ )
    {
-      FILE* fh = fopen("rinfog.log","a");
-      for (int i=0;i<20;++i) {
-        fprintf(fh, "%e ",mumps_data->rinfog[i]);
+      int it = fact_counter_ - 1;
+      int sol = solve_counter_ - 1;  // already incremented above
+      bool write_header = false;
+      FILE* fh = fopen("mumps_stats.csv", "r");
+      if (fh == NULL) {
+        write_header = true;
+      } else {
+        fclose(fh);
       }
-      fprintf(fh, "\n");
-      fclose(fh);
-      fh = fopen("infog.log","a");
-      for (int i=0;i<40;++i) {
-        fprintf(fh, "%d ",mumps_data->infog[i]);
+      fh = fopen("mumps_stats.csv", "a");
+      if (write_header) {
+        fprintf(fh, "iter,solve");
+        for (int i=0;i<40;++i) fprintf(fh, ",INFOG(%d)", i+1);
+        for (int i=0;i<20;++i) fprintf(fh, ",RINFOG(%d)", i+1);
+        for (int i=0;i<40;++i) fprintf(fh, ",ICNTL(%d)", i+1);
+        for (int i=0;i<15;++i) fprintf(fh, ",CNTL(%d)", i+1);
+        fprintf(fh, "\n");
       }
-      fprintf(fh, "\n");
-      fclose(fh);
-      fh = fopen("icntl.log","a");
-      for (int i=0;i<40;++i) {
-        fprintf(fh, "%d ",mumps_data->icntl[i]);
-      }
-      fprintf(fh, "\n");
-      fclose(fh);
-      fh = fopen("cntl.log","a");
-      for (int i=0;i<15;++i) {
-        fprintf(fh, "%e ",mumps_data->cntl[i]);
-      }
+      fprintf(fh, "%d,%d", it, sol);
+      for (int i=0;i<40;++i) fprintf(fh, ",%d", mumps_data->infog[i]);
+      for (int i=0;i<20;++i) fprintf(fh, ",%e", mumps_data->rinfog[i]);
+      for (int i=0;i<40;++i) fprintf(fh, ",%d", mumps_data->icntl[i]);
+      for (int i=0;i<15;++i) fprintf(fh, ",%e", mumps_data->cntl[i]);
       fprintf(fh, "\n");
       fclose(fh);
    }
