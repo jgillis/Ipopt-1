@@ -169,6 +169,15 @@ private:
     *  already been solved before.
     */
    bool warm_start_same_structure_;
+
+   /** Flag to dump matrices to MatrixMarket files */
+   bool mumps_dump_mtx_;
+
+   /** Flag to dump MUMPS statistics to log files */
+   bool mumps_dump_stats_;
+
+   /** Flag to enable MUMPS error analysis (ICNTL(11)) */
+   bool mumps_error_analysis_;
    ///@}
 
    /** Flag indicating if symbolic factorization has already been called */

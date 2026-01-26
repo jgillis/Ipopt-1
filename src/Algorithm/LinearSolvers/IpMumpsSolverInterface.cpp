@@ -42,6 +42,8 @@
 
 #include <cmath>
 #include <cstdlib>
+#include <vector>
+#include <cassert>
 
 #if !defined(IPOPT_MUMPS_NOMUTEX) && __cplusplus < 201103L
 #define IPOPT_MUMPS_NOMUTEX
@@ -181,6 +183,21 @@ void MumpsSolverInterface::RegisterOptions(
       "Threshold to consider a pivot at zero in detection of linearly dependent constraints with MUMPS.",
       0.0,
       "This is CNTL(3) in MUMPS.", true);
+   roptions->AddBoolOption(
+      "mumps_dump_mtx",
+      "Dump matrices to MatrixMarket files for debugging.",
+      false,
+      "When enabled, writes KKT matrices and permutation matrices to .mtx files.");
+   roptions->AddBoolOption(
+      "mumps_dump_stats",
+      "Dump MUMPS statistics to log files.",
+      false,
+      "When enabled, writes rinfog, infog, icntl, cntl arrays to .log files.");
+   roptions->AddBoolOption(
+      "mumps_error_analysis",
+      "Enable MUMPS error analysis.",
+      false,
+      "When enabled, sets ICNTL(11)=1 to compute error analysis statistics.");
 }
 
 /// give name of MUMPS with version info
@@ -217,6 +234,9 @@ bool MumpsSolverInterface::InitializeImpl(
    options.GetIntegerValue("mumps_pivot_order", mumps_pivot_order_, prefix);
    options.GetIntegerValue("mumps_scaling", mumps_scaling_, prefix);
    options.GetNumericValue("mumps_dep_tol", mumps_dep_tol_, prefix);
+   options.GetBoolValue("mumps_dump_mtx", mumps_dump_mtx_, prefix);
+   options.GetBoolValue("mumps_dump_stats", mumps_dump_stats_, prefix);
+   options.GetBoolValue("mumps_error_analysis", mumps_error_analysis_, prefix);
 
    // Reset all private data
    initialized_ = false;
@@ -319,9 +339,9 @@ void dump_matrix(
    MUMPS_STRUC_C* mumps_data
 )
 {
-#ifdef MUMPS_DUMP_MATRIX
+//#ifdef MUMPS_DUMP_MATRIX
    // Dump the matrix
-   for (int i = 0; i < 40; i++)
+   /*for (int i = 0; i < 40; i++)
    {
       printf("%" IPOPT_INDEX_FORMAT "\n", mumps_data->icntl[i]);
    }
@@ -334,17 +354,51 @@ void dump_matrix(
    for (Index i = 0; i < mumps_data->nz; i++)
    {
       printf("\n%" IPOPT_INDEX_FORMAT " %" IPOPT_INDEX_FORMAT " %25.15e", mumps_data->irn[i], mumps_data->jcn[i], mumps_data->a[i]);
+   }*/
+   /*std::string name = "fa.mtx";
+   FILE* fh = fopen(name.c_str(),"w");
+   fprintf(fh, "%%%%MatrixMarket matrix coordinate real symmetric\n");
+   fprintf(fh, "%d %d %d\n", mumps_data->n, mumps_data->n, mumps_data->nz);
+   for (int i=0; i<mumps_data->nz; i++) {
+     fprintf(fh, "%d %d %25.18e\n", mumps_data->irn[i], mumps_data->jcn[i], mumps_data->a[i]);
    }
+   fclose(fh);*/
+   /*
    printf("       :values");
    // Dummy RHS for now
    for (Index i = 0; i < mumps_data->n; i++)
    {
       printf("\n%25.15e", 0.);
    }
-   printf("    :RHS\n");
-#else
-   (void) mumps_data;
-#endif
+   printf("    :RHS\n");*/
+//#endif
+
+}
+
+static
+void dump_matrix_file(MUMPS_STRUC_C* mumps_data, const char* filename)
+{
+   FILE* fh = fopen(filename,"w");
+   fprintf(fh, "%%%%MatrixMarket matrix coordinate real symmetric\n");
+   fprintf(fh, "%d %d %d\n", mumps_data->n, mumps_data->n, mumps_data->nz);
+   for (int i=0; i<mumps_data->nz; i++) {
+     fprintf(fh, "%d %d %25.18e\n", mumps_data->irn[i], mumps_data->jcn[i], mumps_data->a[i]);
+   }
+   fclose(fh);
+}
+
+static
+void dump_matrix_perm(MUMPS_STRUC_C* mumps_data, const char* filename)
+{
+   FILE* fh = fopen(filename,"w");
+   fprintf(fh, "%%%%MatrixMarket matrix coordinate real symmetric\n");
+   fprintf(fh, "%d %d %d\n", mumps_data->n, mumps_data->n, mumps_data->n);
+   const MUMPS_INT* perm = mumps_data->sym_perm;
+   if (!perm) perm = mumps_data->perm_in;
+   for (int i=0; i<mumps_data->n; i++) {
+     fprintf(fh, "%d %d %25.18e\n", perm[i], i+1, 1.0);
+   }
+   fclose(fh);
 }
 
 ESymSolverStatus MumpsSolverInterface::InitializeStructure(
@@ -400,22 +454,99 @@ ESymSolverStatus MumpsSolverInterface::SymbolicFactorization()
 
    mumps_data->job = 1;      //symbolic ordering pass
 
+   mumps_data->icntl[0] = 6;
+   mumps_data->icntl[1] = 6;
+   mumps_data->icntl[2] = 6;//QUIETLY!
+   mumps_data->icntl[3] = 2;//4; // printing level
+
    mumps_data->icntl[5] = mumps_permuting_scaling_;
    mumps_data->icntl[6] = mumps_pivot_order_;
    mumps_data->icntl[7] = mumps_scaling_;
    mumps_data->icntl[9] = 0;   //no iterative refinement iterations
 
+   if( mumps_error_analysis_ )
+   {
+      mumps_data->icntl[10] = 1; // error analysis
+   }
+   //mumps_data->icntl[11] = 1; // defines an ordering strategy for symmetric matrices
    mumps_data->icntl[12] = 1;   //avoid lapack bug, ensures proper inertia; mentioned to be very expensive in mumps manual
    mumps_data->icntl[13] = mem_percent_; //% memory to allocate over expected
    mumps_data->cntl[0] = pivtol_;  // Set pivot tolerance
+   //mumps_data->cntl[1] = // iterative refinement stopping criterium
 
-   dump_matrix(mumps_data);
+   if( mumps_dump_mtx_ )
+   {
+      mumps_data->write_problem[0] = 'f';
+      mumps_data->write_problem[1] = '.';
+      mumps_data->write_problem[2] = 'm';
+      mumps_data->write_problem[3] = 't';
+      mumps_data->write_problem[4] = 'x';
+      mumps_data->write_problem[5] = '\0';
+
+      std::vector<MUMPS_INT>* perm_in = new std::vector<MUMPS_INT>();
+      std::vector<MUMPS_INT>& perm_in_ = *perm_in;
+      int N = (mumps_data->n-2)/6;
+
+      perm_in_.push_back(1);
+      for (int i=1;i<=N;++i) {
+        perm_in_.push_back(3*(i-1)+2);
+        perm_in_.push_back(3*(i-1)+3);
+        perm_in_.push_back(3*(i-1)+4);
+        if (i==1) {
+          perm_in_.push_back(3*N+2);
+        }
+        perm_in_.push_back(3*N+3*i+0);
+        perm_in_.push_back(3*N+3*i+1);
+        perm_in_.push_back(3*N+3*i+2);
+      }
+
+      perm_in_.clear();
+      for (int i=1;i<=3*N+1;++i) {
+        perm_in_.push_back(i);
+        perm_in_.push_back(i+3*N+1);
+      }
+
+
+      std::vector<MUMPS_INT> source = perm_in_;
+      for (int i=0;i<perm_in_.size();++i) {
+        perm_in_[source[i]-1] = i+1;
+      }
+
+
+      printf("perm: ");
+      for (int i=0;i<perm_in_.size();++i) {
+        printf("%d ",perm_in_.at(i));
+      }
+      printf("\n");
+
+      assert(perm_in_.size()==mumps_data->n);
+      mumps_data->perm_in = perm_in_.data();
+
+      dump_matrix_perm(mumps_data, "perm_in_kkt.mtx");
+
+      printf("MumpsSolverInterface::SymbolicFactorization\n");
+      dump_matrix_file(mumps_data, "symbolic_kkt.mtx"); // here
+
+      Jnlst().Printf(J_ERROR, J_LINEAR_ALGEBRA,
+                         "hello world\n");
+   }
 
    Jnlst().Printf(J_MOREDETAILED, J_LINEAR_ALGEBRA,
-                  "Calling MUMPS-1 for symbolic factorization.\n");
+                  "Calling MUMPS-1 for symbolic factorization at cpu time %10.3f (wall %10.3f).\n", CpuTime(), WallclockTime());
    mumps_c(mumps_data);
+   if( mumps_dump_mtx_ )
+   {
+      int nnz_L = mumps_data->infog[3-1];
+      FILE* fh = fopen("nnz_L.mtx","w");
+      fprintf(fh, "%%%%MatrixMarket matrix coordinate real symmetric\n");
+      fprintf(fh, "1 1 1\n");
+      fprintf(fh, "1 1 %d\n", nnz_L);
+      fclose(fh);
+      printf("stop\n");
+      dump_matrix_perm(mumps_data, "perm_kkt.mtx");
+   }
    Jnlst().Printf(J_MOREDETAILED, J_LINEAR_ALGEBRA,
-                  "Done with MUMPS-1 for symbolic factorization.\n");
+                  "Done with MUMPS-1 for symbolic factorization at cpu time %10.3f (wall %10.3f).\n", CpuTime(), WallclockTime());
    Index error = mumps_data->info[0];
    const Index& mumps_permuting_scaling_used = mumps_data->infog[22];
    const Index& mumps_pivot_order_used = mumps_data->infog[6];
@@ -451,6 +582,7 @@ ESymSolverStatus MumpsSolverInterface::Factorization(
    Index numberOfNegEVals
 )
 {
+   static int counter = 0;
    DBG_START_METH("MumpsSolverInterface::Factorization", dbg_verbosity);
    MUMPS_STRUC_C* mumps_data = static_cast<MUMPS_STRUC_C*>(mumps_ptr_);
 
@@ -459,6 +591,14 @@ ESymSolverStatus MumpsSolverInterface::Factorization(
 #endif
 
    mumps_data->job = 2;  //numerical factorization
+
+   if( mumps_dump_mtx_ )
+   {
+      printf("MumpsSolverInterface::Factorization\n");
+      char buffer[64];
+      sprintf(buffer, "numeric_kkt_it%06d.mtx", counter++);
+      dump_matrix_file(mumps_data, buffer);
+   }
 
    dump_matrix(mumps_data);
    Jnlst().Printf(J_MOREDETAILED, J_LINEAR_ALGEBRA,
@@ -576,6 +716,33 @@ ESymSolverStatus MumpsSolverInterface::Solve(
          retval = SYMSOLVER_FATAL_ERROR;
       }
    }
+   if( mumps_dump_stats_ )
+   {
+      FILE* fh = fopen("rinfog.log","a");
+      for (int i=0;i<20;++i) {
+        fprintf(fh, "%e ",mumps_data->rinfog[i]);
+      }
+      fprintf(fh, "\n");
+      fclose(fh);
+      fh = fopen("infog.log","a");
+      for (int i=0;i<40;++i) {
+        fprintf(fh, "%d ",mumps_data->infog[i]);
+      }
+      fprintf(fh, "\n");
+      fclose(fh);
+      fh = fopen("icntl.log","a");
+      for (int i=0;i<40;++i) {
+        fprintf(fh, "%d ",mumps_data->icntl[i]);
+      }
+      fprintf(fh, "\n");
+      fclose(fh);
+      fh = fopen("cntl.log","a");
+      for (int i=0;i<15;++i) {
+        fprintf(fh, "%e ",mumps_data->cntl[i]);
+      }
+      fprintf(fh, "\n");
+      fclose(fh);
+   }
    if( HaveIpData() )
    {
       IpData().TimingStats().LinearSystemBackSolve().End();
@@ -655,6 +822,11 @@ ESymSolverStatus MumpsSolverInterface::DetermineDependentRows(
    mumps_data->cntl[2] = mumps_dep_tol_;
    mumps_data->job = 2;   //numerical factorization
 
+   if( mumps_dump_mtx_ )
+   {
+      printf("MumpsSolverInterface::DetermineDependentRows\n");
+      dump_matrix_file(mumps_data, "numeric_dd_kkt.mtx"); // here
+   }
    dump_matrix(mumps_data);
    mumps_c(mumps_data);
    Index error = mumps_data->info[0];
