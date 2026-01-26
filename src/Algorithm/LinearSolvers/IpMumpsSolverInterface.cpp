@@ -469,11 +469,6 @@ ESymSolverStatus MumpsSolverInterface::SymbolicFactorization()
 
    mumps_data->job = 1;      //symbolic ordering pass
 
-   mumps_data->icntl[0] = 6;
-   mumps_data->icntl[1] = 6;
-   mumps_data->icntl[2] = 6;//QUIETLY!
-   mumps_data->icntl[3] = 2;//4; // printing level
-
    mumps_data->icntl[5] = mumps_permuting_scaling_;
    mumps_data->icntl[6] = mumps_pivot_order_;
    mumps_data->icntl[7] = mumps_scaling_;
