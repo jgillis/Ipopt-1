@@ -243,6 +243,7 @@ bool MumpsSolverInterface::InitializeImpl(
    pivtol_changed_ = false;
    refactorize_ = false;
    have_symbolic_factorization_ = false;
+   last_iter_ = -1;
    fact_counter_ = 0;
    solve_counter_ = 0;
 
@@ -605,11 +606,16 @@ ESymSolverStatus MumpsSolverInterface::Factorization(
 
    mumps_data->job = 2;  //numerical factorization
 
+   int iter = IpData().iter_count();
+   if (iter != last_iter_) {
+      last_iter_ = iter;
+      fact_counter_ = 0;
+   }
    if( mumps_dump_mtx_ )
    {
       printf("MumpsSolverInterface::Factorization\n");
       char buffer[64];
-      sprintf(buffer, "numeric_kkt_it%06d.mtx", fact_counter_);
+      sprintf(buffer, "mumps_kkt_it%06d_fact%d.mtx", iter, fact_counter_);
       dump_matrix_file(mumps_data, buffer);
    }
    solve_counter_ = 0;
@@ -721,7 +727,7 @@ ESymSolverStatus MumpsSolverInterface::Solve(
       if( mumps_dump_mtx_ )
       {
          char buffer[64];
-         sprintf(buffer, "rhs_it%06d_%06d.mtx", fact_counter_ - 1, solve_counter_++);
+         sprintf(buffer, "mumps_rhs_it%06d_fact%d_%03d.mtx", IpData().iter_count(), fact_counter_ - 1, solve_counter_++);
          dump_rhs_file(mumps_data->rhs, mumps_data->n, buffer);
       }
       Jnlst().Printf(J_MOREDETAILED, J_LINEAR_ALGEBRA,
@@ -739,7 +745,8 @@ ESymSolverStatus MumpsSolverInterface::Solve(
    }
    if( mumps_dump_stats_ )
    {
-      int it = fact_counter_ - 1;
+      int it = IpData().iter_count();
+      int fact = fact_counter_ - 1;  // already incremented in Factorization
       int sol = solve_counter_ - 1;  // already incremented above
       bool write_header = false;
       FILE* fh = fopen("mumps_stats.csv", "r");
@@ -750,14 +757,14 @@ ESymSolverStatus MumpsSolverInterface::Solve(
       }
       fh = fopen("mumps_stats.csv", "a");
       if (write_header) {
-        fprintf(fh, "iter,solve");
+        fprintf(fh, "iter,fact,solve");
         for (int i=0;i<40;++i) fprintf(fh, ",INFOG(%d)", i+1);
         for (int i=0;i<20;++i) fprintf(fh, ",RINFOG(%d)", i+1);
         for (int i=0;i<40;++i) fprintf(fh, ",ICNTL(%d)", i+1);
         for (int i=0;i<15;++i) fprintf(fh, ",CNTL(%d)", i+1);
         fprintf(fh, "\n");
       }
-      fprintf(fh, "%d,%d", it, sol);
+      fprintf(fh, "%d,%d,%d", it, fact, sol);
       for (int i=0;i<40;++i) fprintf(fh, ",%d", mumps_data->infog[i]);
       for (int i=0;i<20;++i) fprintf(fh, ",%e", mumps_data->rinfog[i]);
       for (int i=0;i<40;++i) fprintf(fh, ",%d", mumps_data->icntl[i]);

@@ -179,7 +179,10 @@ private:
    /** Flag to enable MUMPS error analysis (ICNTL(11)) */
    bool mumps_error_analysis_;
 
-   /** Counter for factorization iterations (for dump files) */
+   /** Last seen Ipopt iteration (to detect when to reset fact_counter) */
+   mutable int last_iter_;
+
+   /** Counter for factorizations within an Ipopt iteration (for dump files) */
    mutable int fact_counter_;
 
    /** Counter for solve iterations within a factorization (for dump files) */
