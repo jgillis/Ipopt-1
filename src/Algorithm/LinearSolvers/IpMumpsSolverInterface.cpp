@@ -523,22 +523,11 @@ ESymSolverStatus MumpsSolverInterface::SymbolicFactorization()
       }
 
 
-      printf("perm: ");
-      for (int i=0;i<perm_in_.size();++i) {
-        printf("%d ",perm_in_.at(i));
-      }
-      printf("\n");
-
       assert(perm_in_.size()==mumps_data->n);
       mumps_data->perm_in = perm_in_.data();
 
       dump_matrix_perm(mumps_data, "perm_in_kkt.mtx");
-
-      printf("MumpsSolverInterface::SymbolicFactorization\n");
-      dump_matrix_file(mumps_data, "symbolic_kkt.mtx"); // here
-
-      Jnlst().Printf(J_ERROR, J_LINEAR_ALGEBRA,
-                         "hello world\n");
+      dump_matrix_file(mumps_data, "symbolic_kkt.mtx");
    }
 
    Jnlst().Printf(J_MOREDETAILED, J_LINEAR_ALGEBRA,
@@ -552,7 +541,6 @@ ESymSolverStatus MumpsSolverInterface::SymbolicFactorization()
       fprintf(fh, "1 1 1\n");
       fprintf(fh, "1 1 %d\n", nnz_L);
       fclose(fh);
-      printf("stop\n");
       dump_matrix_perm(mumps_data, "perm_kkt.mtx");
    }
    Jnlst().Printf(J_MOREDETAILED, J_LINEAR_ALGEBRA,
@@ -608,7 +596,6 @@ ESymSolverStatus MumpsSolverInterface::Factorization(
    }
    if( mumps_dump_mtx_ )
    {
-      printf("MumpsSolverInterface::Factorization\n");
       char buffer[64];
       sprintf(buffer, "mumps_kkt_it%06d_fact%d.mtx", iter, fact_counter_);
       dump_matrix_file(mumps_data, buffer);
@@ -848,8 +835,7 @@ ESymSolverStatus MumpsSolverInterface::DetermineDependentRows(
 
    if( mumps_dump_mtx_ )
    {
-      printf("MumpsSolverInterface::DetermineDependentRows\n");
-      dump_matrix_file(mumps_data, "numeric_dd_kkt.mtx"); // here
+      dump_matrix_file(mumps_data, "mumps_dd_kkt.mtx");
    }
    dump_matrix(mumps_data);
    mumps_c(mumps_data);
