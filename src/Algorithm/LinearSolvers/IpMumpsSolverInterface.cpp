@@ -243,6 +243,8 @@ bool MumpsSolverInterface::InitializeImpl(
    pivtol_changed_ = false;
    refactorize_ = false;
    have_symbolic_factorization_ = false;
+   fact_counter_ = 0;
+   solve_counter_ = 0;
 
    MUMPS_STRUC_C* mumps_ = static_cast<MUMPS_STRUC_C*>(mumps_ptr_);
    if( !warm_start_same_structure_ )
@@ -397,6 +399,18 @@ void dump_matrix_perm(MUMPS_STRUC_C* mumps_data, const char* filename)
    if (!perm) perm = mumps_data->perm_in;
    for (int i=0; i<mumps_data->n; i++) {
      fprintf(fh, "%d %d %25.18e\n", perm[i], i+1, 1.0);
+   }
+   fclose(fh);
+}
+
+static
+void dump_rhs_file(const Number* rhs, int n, const char* filename)
+{
+   FILE* fh = fopen(filename, "w");
+   fprintf(fh, "%%%%MatrixMarket matrix array real general\n");
+   fprintf(fh, "%d 1\n", n);
+   for (int i = 0; i < n; i++) {
+     fprintf(fh, "%25.18e\n", rhs[i]);
    }
    fclose(fh);
 }
@@ -582,7 +596,6 @@ ESymSolverStatus MumpsSolverInterface::Factorization(
    Index numberOfNegEVals
 )
 {
-   static int counter = 0;
    DBG_START_METH("MumpsSolverInterface::Factorization", dbg_verbosity);
    MUMPS_STRUC_C* mumps_data = static_cast<MUMPS_STRUC_C*>(mumps_ptr_);
 
@@ -596,9 +609,11 @@ ESymSolverStatus MumpsSolverInterface::Factorization(
    {
       printf("MumpsSolverInterface::Factorization\n");
       char buffer[64];
-      sprintf(buffer, "numeric_kkt_it%06d.mtx", counter++);
+      sprintf(buffer, "numeric_kkt_it%06d.mtx", fact_counter_);
       dump_matrix_file(mumps_data, buffer);
    }
+   solve_counter_ = 0;
+   fact_counter_++;
 
    dump_matrix(mumps_data);
    Jnlst().Printf(J_MOREDETAILED, J_LINEAR_ALGEBRA,
@@ -703,6 +718,12 @@ ESymSolverStatus MumpsSolverInterface::Solve(
       Index offset = i * mumps_data->n;
       mumps_data->rhs = &(rhs_vals[offset]);
       mumps_data->job = 3;  //solve
+      if( mumps_dump_mtx_ )
+      {
+         char buffer[64];
+         sprintf(buffer, "rhs_it%06d_%06d.mtx", fact_counter_ - 1, solve_counter_++);
+         dump_rhs_file(mumps_data->rhs, mumps_data->n, buffer);
+      }
       Jnlst().Printf(J_MOREDETAILED, J_LINEAR_ALGEBRA,
                      "Calling MUMPS-3 for solve.\n");
       mumps_c(mumps_data);

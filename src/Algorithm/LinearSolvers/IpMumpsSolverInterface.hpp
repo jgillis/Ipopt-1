@@ -178,6 +178,12 @@ private:
 
    /** Flag to enable MUMPS error analysis (ICNTL(11)) */
    bool mumps_error_analysis_;
+
+   /** Counter for factorization iterations (for dump files) */
+   mutable int fact_counter_;
+
+   /** Counter for solve iterations within a factorization (for dump files) */
+   mutable int solve_counter_;
    ///@}
 
    /** Flag indicating if symbolic factorization has already been called */
