@@ -84,11 +84,13 @@ void LibraryLoader::loadLibrary()
 
 #elif defined(HAVE_DLFCN_H)
    // ToDo switch to RTLD_LAZY for performance?
-   #ifdef __APPLE__
-      libhandle = dlopen(libname.c_str(), RTLD_NOW);
-   #else
-      libhandle = dlopen(libname.c_str(), RTLD_NOW | RTLD_DEEPBIND);
-   #endif
+   {
+      int _ipopt_dlopen_flags = RTLD_NOW;
+#ifdef RTLD_DEEPBIND
+      _ipopt_dlopen_flags |= RTLD_DEEPBIND;
+#endif
+      libhandle = dlopen(libname.c_str(), _ipopt_dlopen_flags);
+   }
 
    if( libhandle == NULL )
    {
